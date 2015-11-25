@@ -1,0 +1,4 @@
+Yan Zichao	921150256	yanzichao@campus.technion.ac.il
+Olga Okrent	308598481	olgaokrent@gmail.com
+
+csl2 accounts are working fine.

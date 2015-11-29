@@ -1,4 +1,22 @@
 Yan Zichao	921150256	yanzichao@campus.technion.ac.il
 Olga Okrent	308598481	olgaokrent@gmail.com
 
-csl2 accounts are working fine.
+
+
+
+Current status: 
+
+with correct username and password, the csl2 account is working fine. No problem occurs when logging onto csl2 or using PostgreSQL Library.
+
+
+
+
+Progress so far: 
+
+Have created basic structure of wet.c, which includes a main function “int main(int attic, char* argv[]);” to log into csl2 account and connect to PostgreSQL database with a handler “PGconn* conn”, as explained in the HW2.pdf; after that, the main function wills start parsing commands using “void parseInput();” which is already provided and implemented “in parser.c”.
+
+Rest of the work in wet.c is to implement 12 different functions catered for the 12 separate sql/ddl/dml commands, which have already been declared in wet.h.
+
+In every function, the result from doing sql query will be contained in a variable “res”, of “PGresult*” type; The PGLIB has provided various way to parse into that data structure to get specified values. Then those values will be printed to STDOUT using constants already defined in wet.h
+
+Till now “void* addUser(const char* name);” and “void* addUserMin(const char* name);” have already been implemented and tested on csl2 server. The team will divide the workload in a equitable manner.

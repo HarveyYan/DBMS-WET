@@ -1,0 +1,15 @@
+addUser Ohad
+removeUser 2
+addUserMin Ohad
+addPhoto 2 100
+tagPhoto 2 100 Fun
+photosTags
+search Car
+commonTags 2
+mostCommonTags 1
+similarPhotos 1 2
+autoPhotoOnTagOn
+photosTags
+tagPhoto 2 102 Table
+photosTags
+autoPhotoOnTagOff

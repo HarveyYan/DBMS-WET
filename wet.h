@@ -31,10 +31,10 @@
 #define COMMAND_PHOTOS_TAGS             "photosTags"
 #define COMMAND_SEARCH                  "search"
 #define COMMAND_COMMON_TAGS             "commonTags"
-#define COMMAND_MOST_COMMON_TAGS        "mostCommonTags "
+#define COMMAND_MOST_COMMON_TAGS        "mostCommonTags"
 #define COMMAND_SIMILAR_PHOTOS          "similarPhotos"
 #define COMMAND_ADD_PHOTOS_ON_TAG_ON    "autoPhotoOnTagOn"
-#define COMMAND_ADD_PHOTOS_ON_TAG_OFF   "autoPhotoOnTagOFF"
+#define COMMAND_ADD_PHOTOS_ON_TAG_OFF   "autoPhotoOnTagOff"
 #define COMMAND_EXIT                    "exit"
 
 #define ADD_USER        "User ID: %s\n"
@@ -51,9 +51,9 @@
 
 #define PHOTOS_RESULT   "| %-12s | %-12s | %-12s |\n"
 
-#define COMMON_HEADER   ".------------------------.--------------.\n" \
-                        "|          Tag           |   #Photos    |\n" \
-                        ".------------------------.--------------.\n"
+#define COMMON_HEADER   ".---------------------------.--------------.\n" \
+                        "|            Tag            |   #Photos    |\n" \
+                        ".---------------------------.--------------.\n"
 
 #define COMMON_LINE     "| %-25s | %-12s |\n"
 

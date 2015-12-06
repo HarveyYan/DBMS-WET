@@ -163,7 +163,7 @@ void* tagPhoto(const char*    user_id,
 	}
 	PQclear(res);
 
-	sprintf(cmd, "SELECT * FROM tags WHERE photo_id = %s AND user_id = %s", photo_id, user_id);
+	sprintf(cmd, "SELECT * FROM tags WHERE photo_id = %s AND user_id = %s AND info = \'%s\'", photo_id, user_id, info);
 	res = PQexec(conn, cmd);
 	if (PQntuples(res) > 0) {
 		printf(EXISTING_RECORD);
@@ -171,7 +171,7 @@ void* tagPhoto(const char*    user_id,
 	}
 	PQclear(res);
 
-	sprintf(cmd, "INSERT INTO photos VALUES(%s,%s,%s)", photo_id, user_id, info);
+	sprintf(cmd, "INSERT INTO tags VALUES(%s,%s,\'%s\')", photo_id, user_id, info);
 	res = PQexec(conn, cmd);
 
 }
@@ -210,13 +210,12 @@ void* search(const char*    word){
 	}
 }
 
-//NOTE: Here counts photos instead of records
 void* commonTags(const char*    k){
 	char cmd[200];
 	PGresult *res;
 	int i;
 
-	sprintf(cmd, "SELECT info, count(DISTINCT photo_id) AS photo_count FROM tags GROUP BY info HAVING count(DISTINCT photo_id) >= %s ORDER BY photo_count DESC, info ASC", k);
+	sprintf(cmd, "SELECT info, count(*) AS photo_count FROM tags GROUP BY info HAVING count(DISTINCT photo_id) >= %s ORDER BY photo_count DESC, info ASC", k);
 	res = PQexec(conn, cmd);
 
 	if (PQntuples(res) == 0)
@@ -228,19 +227,113 @@ void* commonTags(const char*    k){
 	}
 }
 
+//TODO: Some better solutions?
 void* mostCommonTags(const char*    k){
+	char cmd[200];
+	PGresult *res;
+	int i;
 
+	sprintf(cmd, "SELECT info, count(*) AS photo_count FROM tags GROUP BY info ORDER BY photo_count DESC, info ASC");
+	res = PQexec(conn, cmd);
+
+	if (PQntuples(res) == 0)
+		printf(EMPTY);
+	else{
+		printf(COMMON_HEADER);
+		for (i = 0; i < atoi(k); i++)
+			printf(COMMON_LINE, PQgetvalue(res, i, 0), PQgetvalue(res, i, 1));
+	}
 }
 
 void* similarPhotos(const char*    k,
 	const char*    j){
+	char cmd[500];
+	PGresult *res, *que;
+	int i;
 
+	sprintf(cmd,
+		"SELECT uid_1, pid_1 "
+		"FROM ( "
+		"		SELECT t1.user_id AS uid_1, t1.photo_id AS pid_1, t2.user_id AS uid_2, t2.photo_id AS pid_2 "
+		"		FROM tags t1, tags t2 "
+		"		WHERE t1.info = t2.info AND (t1.user_id <> t2.user_id OR t1.photo_id <> t2.photo_id) "
+		"		GROUP BY t1.user_id, t1.photo_id, t2.user_id, t2.photo_id "
+		"		HAVING COUNT(t1.info) >= %s "
+		"	) AS t "
+		"GROUP BY uid_1, pid_1 "
+		"HAVING COUNT((UID_2, PID_2)) >= %s "
+		"ORDER BY uid_1 ASC, pid_1 ASC ", 
+		j, k);
+
+	res = PQexec(conn, cmd);
+	if (!res || PQresultStatus(res) != PGRES_TUPLES_OK) {
+		fprintf(stderr, "Error executing commands: %s\n",
+			PQresultErrorMessage(res));
+		PQclear(res);
+		return;
+	}
+
+	if (PQntuples(res) == 0)
+		printf(EMPTY);
+	else{
+		printf(SIMILAR_HEADER);
+		for (i = 0; i < PQntuples(res); i++){
+			sprintf(cmd, "SELECT name FROM users WHERE id = %s", PQgetvalue(res,i,0));
+			que = PQexec(conn, cmd);
+			if (!que || PQresultStatus(que) != PGRES_TUPLES_OK) {
+				fprintf(stderr, "Error executing commands: %s\n",
+					PQresultErrorMessage(que));
+				PQclear(que);
+				return;
+			}
+			printf(SIMILAR_RESULT, PQgetvalue(res, i, 0), PQgetvalue(que, 0, 0), PQgetvalue(res, i, 1));
+			PQclear(que);
+		}
+	}
 }
 
 void* autoPhotoOnTagOn(){
+	PGresult *res;
+	char cmd[5000];
+	//PQexec(conn, "CREATE TRIGGER photo_trigger BEFORE INSERT ON tags FOR EACH ROW EXECUATE PROCEJURE add_photo();");
 
+	sprintf(cmd,
+		"CREATE OR REPLACE FUNCTION process_photos() RETURNS TRIGGER "
+		"AS $$ "
+		"BEGIN "
+		"IF((NEW.photo_id, NEW.user_id) NOT IN(SELECT * FROM photos) AND NEW.user_id IN (SELECT users.id FROM users)) THEN "
+				"INSERT INTO photos VALUES(NEW.photo_id, NEW.user_id); "
+			"END IF; "
+		"RETURN NEW; "
+		"END; "
+		"$$ LANGUAGE plpgsql;"
+		);
+
+	res = PQexec(conn, cmd);
+	if (!res || PQresultStatus(res) != PGRES_COMMAND_OK) {
+		fprintf(stderr, "Error executing commands: %s\n",
+			PQresultErrorMessage(res));
+		PQclear(res);
+		return;
+	}
+	PQclear(res);
+
+	res = PQexec(conn, "CREATE TRIGGER photo_trigger BEFORE INSERT ON tags FOR EACH ROW EXECUTE PROCEDURE process_photos();");
+	if (!res || PQresultStatus(res) != PGRES_COMMAND_OK) {
+		fprintf(stderr, "Error executing commands: %s\n",
+			PQresultErrorMessage(res));
+		PQclear(res);
+		return;
+	}
 }
 
 void* autoPhotoOnTagOFF(){
-
+	PGresult *res;
+	res = PQexec(conn, "DROP TRIGGER IF EXISTS photo_trigger ON tags");
+	if (!res || PQresultStatus(res) != PGRES_COMMAND_OK) {
+		fprintf(stderr, "Error executing commands: %s\n",
+			PQresultErrorMessage(res));
+		PQclear(res);
+		return;
+	}
 }

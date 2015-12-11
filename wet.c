@@ -49,52 +49,80 @@ void* addUser(const char*    name){
 }
 
 //TODO: Find a more efficient algorithm
+//void* addUserMin(const char*    name){
+//	int min, i, n;
+//	char cmd[200];
+//	PGresult *res;
+//	
+//	res = PQexec(conn, "SELECT MIN(ID) FROM users");
+//	if (!res || PQresultStatus(res) != PGRES_TUPLES_OK) {
+//		fprintf(stderr, "Error executing commands: %s\n",
+//			PQresultErrorMessage(res));
+//		PQclear(res);
+//		return;
+//	}
+//
+//	if (PQgetisnull(res, 0, 0))/*if table is empty*/{
+//		sprintf(cmd, "INSERT INTO users values(0, \'%s\')",name);
+//		res = PQexec(conn, cmd);
+//		if (!res || PQresultStatus(res) != PGRES_COMMAND_OK) {
+//			PQclear(res);
+//		}
+//		else{
+//			printf(USER_HEADER);
+//			printf(USER_RESULT, 0, name);
+//		}
+//	}
+//	else{
+//		min = atoi(PQgetvalue(res, 0, 0));
+//		PQclear(res);
+//
+//		for (i = min + 1;; i++){
+//			sprintf(cmd, "INSERT INTO users values(%d, \'%s\')", i, name);
+//			res = PQexec(conn, cmd);
+//			if (!res || PQresultStatus(res) != PGRES_COMMAND_OK) {
+//				PQclear(res);
+//			}
+//			else{
+//				printf(USER_HEADER);
+//				PQclear(res);
+//				res = PQexec(conn, "SELECT * FROM users ORDER BY id");
+//				n = PQntuples(res);
+//				for (i = 0; i < n; i++)
+//					printf(USER_RESULT, PQgetvalue(res, i, 0), PQgetvalue(res, i, 1));
+//				break;
+//			}
+//		}
+//	}
+//	
+//}
+
 void* addUserMin(const char*    name){
-	int min, i, n;
+	int prev, i, n;
 	char cmd[200];
+	bool check = false;
 	PGresult *res;
-	
-	res = PQexec(conn, "SELECT MIN(ID) FROM users");
-	if (!res || PQresultStatus(res) != PGRES_TUPLES_OK) {
-		fprintf(stderr, "Error executing commands: %s\n",
-			PQresultErrorMessage(res));
-		PQclear(res);
-		return;
-	}
 
-	if (PQgetisnull(res, 0, 0))/*if table is empty*/{
-		sprintf(cmd, "INSERT INTO users values(0, \'%s\')",name);
-		res = PQexec(conn, cmd);
-		if (!res || PQresultStatus(res) != PGRES_COMMAND_OK) {
-			PQclear(res);
-		}
-		else{
-			printf(USER_HEADER);
-			printf(USER_RESULT, 0, name);
-		}
-	}
-	else{
-		min = atoi(PQgetvalue(res, 0, 0));
-		PQclear(res);
+	res = PQexec(conn, "SELECT id FROM users ORDER BY id ASC");
 
-		for (i = min + 1;; i++){
-			sprintf(cmd, "INSERT INTO users values(%d, \'%s\')", i, name);
-			res = PQexec(conn, cmd);
-			if (!res || PQresultStatus(res) != PGRES_COMMAND_OK) {
-				PQclear(res);
-			}
+	if (PQntuples(res) == 0){
+		sprintf(cmd, "INSERT INTO users values(0, \'%s\')", name);
+		PQexec(conn, cmd);
+	}
+	else
+		for (i = 0; i < PQntuples(res); i++)
+			if (i == 0 || PQgetvalue(res, i, 0) == prev + 1)
+				prev = PQgetvalue(res, i, 0);
 			else{
-				printf(USER_HEADER);
-				PQclear(res);
-				res = PQexec(conn, "SELECT * FROM users ORDER BY id");
-				n = PQntuples(res);
-				for (i = 0; i < n; i++)
-					printf(USER_RESULT, PQgetvalue(res, i, 0), PQgetvalue(res, i, 1));
-				break;
+				sprintf(cmd, "INSERT INTO users values(%d, \'%s\')", prev + 1, name);
+				PQexec(conn, cmd);
+				check = true;
 			}
-		}
+
+	if (check == false){
+		sprintf(cmd, "INSERT INTO users values(%d, \'%s\')", prev + 1, name);
+		PQexec(conn, cmd);
 	}
-	
 }
 
 //Could be improved
@@ -196,10 +224,21 @@ void* photosTags(){
 void* search(const char*    word){
 	char cmd[200];
 	PGresult *res;
+	char c = '%';
 	int i;
-
-	sprintf(cmd, "SELECT p.id, p.user_id, COUNT(info) AS tag_count FROM photos p LEFT OUTER JOIN tags t ON ( p.user_id = t.user_id AND p.id = t.photo_id ) WHERE t.info = \'%s\' GROUP BY p.id, p.user_id ORDER BY tag_count DESC, p.user_id ASC, p.id DESC", word);
+	sprintf(cmd, 
+		"SELECT photo_id, user_id, COUNT(info) AS tag_count "
+		"FROM tags "
+		"WHERE info LIKE '%c'||'%s'||'%c'"
+		" GROUP BY photo_id, user_id "
+		"ORDER BY tag_count DESC, user_id ASC, photo_id DESC", c, word, c);
 	res = PQexec(conn, cmd);
+	if (!res || PQresultStatus(res) != PGRES_TUPLES_OK) {
+		fprintf(stderr, "Error executing commands: %s\n",
+			PQresultErrorMessage(res));
+		PQclear(res);
+		return;
+	}
 
 	if (PQntuples(res) == 0)
 		printf(EMPTY);

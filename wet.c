@@ -22,7 +22,6 @@ int main(int argc, char* argv[]) {
 	return 0;
 }
 
-//TODO: Should we check if the table is empty?
 void* addUser(const char*    name){
 	char cmd[200];
 	PGresult *res;
@@ -31,13 +30,15 @@ void* addUser(const char*    name){
 	if (!res || PQresultStatus(res) != PGRES_COMMAND_OK) {
 		fprintf(stderr, "Error executing commands: %s\n",
 			PQresultErrorMessage(res));
+		//in case the table is initially empty, that we can still add into with id 0
 		PQclear(res);
-		return;
+		sprintf(cmd, "INSERT INTO users values(0, \'%s\')", name);
+		res = PQexec(conn, cmd);
 	}
 
 	PQclear(res);
 
-	sprintf(cmd, "SELECT id FROM users WHERE users.name =\'%s\'", name );
+	sprintf(cmd, "SELECT id FROM users WHERE users.name =\'%s\'", name);
 	res = PQexec(conn, cmd);
 	if (!res || PQresultStatus(res) != PGRES_TUPLES_OK) {
 		fprintf(stderr, "Error executing commands: %s\n",
@@ -47,55 +48,6 @@ void* addUser(const char*    name){
 	}
 	printf(ADD_USER, PQgetvalue(res,0,0));
 }
-
-//TODO: Find a more efficient algorithm
-//void* addUserMin(const char*    name){
-//	int min, i, n;
-//	char cmd[200];
-//	PGresult *res;
-//	
-//	res = PQexec(conn, "SELECT MIN(ID) FROM users");
-//	if (!res || PQresultStatus(res) != PGRES_TUPLES_OK) {
-//		fprintf(stderr, "Error executing commands: %s\n",
-//			PQresultErrorMessage(res));
-//		PQclear(res);
-//		return;
-//	}
-//
-//	if (PQgetisnull(res, 0, 0))/*if table is empty*/{
-//		sprintf(cmd, "INSERT INTO users values(0, \'%s\')",name);
-//		res = PQexec(conn, cmd);
-//		if (!res || PQresultStatus(res) != PGRES_COMMAND_OK) {
-//			PQclear(res);
-//		}
-//		else{
-//			printf(USER_HEADER);
-//			printf(USER_RESULT, 0, name);
-//		}
-//	}
-//	else{
-//		min = atoi(PQgetvalue(res, 0, 0));
-//		PQclear(res);
-//
-//		for (i = min + 1;; i++){
-//			sprintf(cmd, "INSERT INTO users values(%d, \'%s\')", i, name);
-//			res = PQexec(conn, cmd);
-//			if (!res || PQresultStatus(res) != PGRES_COMMAND_OK) {
-//				PQclear(res);
-//			}
-//			else{
-//				printf(USER_HEADER);
-//				PQclear(res);
-//				res = PQexec(conn, "SELECT * FROM users ORDER BY id");
-//				n = PQntuples(res);
-//				for (i = 0; i < n; i++)
-//					printf(USER_RESULT, PQgetvalue(res, i, 0), PQgetvalue(res, i, 1));
-//				break;
-//			}
-//		}
-//	}
-//	
-//}
 
 void* addUserMin(const char*    name){
 	int prev, i, n;
@@ -111,21 +63,28 @@ void* addUserMin(const char*    name){
 	}
 	else
 		for (i = 0; i < PQntuples(res); i++)
-			if (i == 0 || PQgetvalue(res, i, 0) == prev + 1)
-				prev = PQgetvalue(res, i, 0);
+			if (i == 0 || atoi(PQgetvalue(res, i, 0)) == prev + 1)
+				prev = atoi(PQgetvalue(res, i, 0));
 			else{
 				sprintf(cmd, "INSERT INTO users values(%d, \'%s\')", prev + 1, name);
 				PQexec(conn, cmd);
 				check = true;
+				break;
 			}
 
 	if (check == false){
 		sprintf(cmd, "INSERT INTO users values(%d, \'%s\')", prev + 1, name);
 		PQexec(conn, cmd);
 	}
+
+	printf(USER_HEADER);
+	PQclear(res);
+	res = PQexec(conn, "SELECT * FROM users ORDER BY id");
+	n = PQntuples(res);
+	for (i = 0; i < n; i++)
+		printf(USER_RESULT, PQgetvalue(res, i, 0), PQgetvalue(res, i, 1));
 }
 
-//Could be improved
 void* removeUser(const char*    id){
 	char cmd[200];
 	PGresult *res;
@@ -209,7 +168,11 @@ void* photosTags(){
 	PGresult *res;
 	int i;
 
-	sprintf(cmd, "SELECT p.id, p.user_id, COUNT(info) AS tag_count FROM photos p LEFT OUTER JOIN tags t ON ( p.user_id = t.user_id AND p.id = t.photo_id ) GROUP BY p.id, p.user_id ORDER BY tag_count DESC, p.user_id ASC, p.id ASC");
+	sprintf(cmd, 
+		"SELECT p.id, p.user_id, COUNT(info) AS tag_count "
+		"FROM photos p LEFT OUTER JOIN tags t ON ( p.user_id = t.user_id AND p.id = t.photo_id ) "
+		"GROUP BY p.id, p.user_id "
+		"ORDER BY tag_count DESC, p.user_id ASC, p.id ASC");
 	res = PQexec(conn, cmd);
 	
 	if (PQntuples(res) == 0)
@@ -254,7 +217,7 @@ void* commonTags(const char*    k){
 	PGresult *res;
 	int i;
 
-	sprintf(cmd, "SELECT info, count(*) AS photo_count FROM tags GROUP BY info HAVING count(DISTINCT photo_id) >= %s ORDER BY photo_count DESC, info ASC", k);
+	sprintf(cmd, "SELECT info, count(*) AS photo_count FROM tags GROUP BY info HAVING count(photo_id) >= %s ORDER BY photo_count DESC, info ASC", k);
 	res = PQexec(conn, cmd);
 
 	if (PQntuples(res) == 0)
@@ -266,7 +229,7 @@ void* commonTags(const char*    k){
 	}
 }
 
-//TODO: Some better solutions?
+//TODO: limitation operator and partial loop are forbiddened here?
 void* mostCommonTags(const char*    k){
 	char cmd[200];
 	PGresult *res;

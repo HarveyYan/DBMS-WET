@@ -79,7 +79,8 @@ void* addUserMin(const char*    name){
 
 	printf(USER_HEADER);
 	PQclear(res);
-	res = PQexec(conn, "SELECT * FROM users ORDER BY id");
+	sprintf(cmd, "SELECT * FROM users WHERE name = \'%s\' ORDER BY id", name);
+	res = PQexec(conn, cmd);
 	n = PQntuples(res);
 	for (i = 0; i < n; i++)
 		printf(USER_RESULT, PQgetvalue(res, i, 0), PQgetvalue(res, i, 1));
@@ -229,20 +230,41 @@ void* commonTags(const char*    k){
 	}
 }
 
-//TODO: limitation operator and partial loop are forbiddened here?
 void* mostCommonTags(const char*    k){
-	char cmd[200];
+	char cmd[500];
 	PGresult *res;
 	int i;
 
-	sprintf(cmd, "SELECT info, count(*) AS photo_count FROM tags GROUP BY info ORDER BY photo_count DESC, info ASC");
+	sprintf(cmd, 
+		"SELECT info, count(*) AS photo_count "
+		"From tags AS t "
+		" GROUP BY info "
+		"HAVING %s> "
+		"	( "
+		"		SELECT COUNT(*) "
+		"		FROM "
+		"			( "
+		"				SELECT info "
+		"				FROM tags "
+		"				GROUP BY info "
+		"				HAVING COUNT(photo_id) > COUNT(t.photo_id) OR ( COUNT(photo_id) = COUNT(t.photo_id) AND info < t.info) "
+		"			) AS tt "
+		"	) "
+		"ORDER BY photo_count DESC, info ASC "
+		, k);
 	res = PQexec(conn, cmd);
+	if (!res || PQresultStatus(res) != PGRES_TUPLES_OK) {
+		fprintf(stderr, "Error executing commands: %s\n",
+			PQresultErrorMessage(res));
+		PQclear(res);
+		return;
+	}
 
 	if (PQntuples(res) == 0)
 		printf(EMPTY);
 	else{
 		printf(COMMON_HEADER);
-		for (i = 0; i < atoi(k); i++)
+		for (i = 0; i < PQntuples(res); i++)
 			printf(COMMON_LINE, PQgetvalue(res, i, 0), PQgetvalue(res, i, 1));
 	}
 }
